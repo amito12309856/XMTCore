@@ -400,6 +400,7 @@ Move Worker::think(const Position& rootPos, const Limits& lim) {
     if (pos.do_move(list[i])) { pos.undo_move(); RootMove rm; rm.move = list[i]; root.push_back(rm); }
   if (root.empty()) return NO_MOVE;
   ponderMove = NO_MOVE;
+  completedPonder = NO_MOVE;
   wasPondering = (id == 0 && lim.ponder);
   if (root.size() == 1 && !lim.infinite && !lim.ponder && lim.depth == 0) return root.front().move;
   if (id != 0 && root.size() == 1) return NO_MOVE;
@@ -500,6 +501,7 @@ Move Worker::think(const Position& rootPos, const Limits& lim) {
     std::stable_sort(root.begin() + 1, root.end(), [](const RootMove& a, const RootMove& b) { return a.score > b.score; });
     completed = root;
     completedBest = iterBestMove;
+    completedPonder = (*pvLen >= 2) ? *(*pvTable + 1) : NO_MOVE;
     completedValid = true;
     bestScore = prevScore = score;
     if (id == 0) print_info(depth, score, elapsed_ms());
@@ -544,7 +546,9 @@ Move Worker::think(const Position& rootPos, const Limits& lim) {
     }
   }
   if (finalMove == NO_MOVE) finalMove = root.front().move;
-  if (finalMove == completedBest && *pvLen >= 2 && **pvTable == finalMove) {
+  if (finalMove == completedBest && completedPonder != NO_MOVE) {
+    ponderMove = completedPonder;
+  } else if (*pvLen >= 2 && **pvTable == finalMove) {
     ponderMove = *(*pvTable + 1);
   } else if (finalMove != NO_MOVE && pos.do_move(finalMove)) {
     TTData ptd;

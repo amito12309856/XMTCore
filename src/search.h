@@ -126,6 +126,7 @@ class Worker {
   std::vector<RootMove> root, completed;
   Move iterBestMove = NO_MOVE;
   Move ponderMove = NO_MOVE;
+  Move completedPonder = NO_MOVE;
   int rootDepth = 0, seldepth = 0;
   uint64_t nodes = 0, nodeLimit = 0, nnEvals = 0;
   std::chrono::steady_clock::time_point startTime;

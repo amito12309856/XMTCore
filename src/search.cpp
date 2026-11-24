@@ -48,8 +48,12 @@ int64_t Worker::elapsed_ms() const {
 void Worker::check_time() {
   pubNodes.store(nodes, std::memory_order_relaxed);
   if (id != 0 || stopped()) return;
+  if (wasPondering && !mgr->ponderFlag.load(std::memory_order_acquire)) {
+    wasPondering = false;
+    startTime = std::chrono::steady_clock::now();
+  }
   if (nodeLimit && mgr->total_nodes() >= nodeLimit) { mgr->stopFlag = true; return; }
-  if (timed && rootDepth > 1 && elapsed_ms() >= hardMs) mgr->stopFlag = true;
+  if (!wasPondering && timed && rootDepth > 1 && elapsed_ms() >= hardMs) mgr->stopFlag = true;
 }
 
 // ------------------------------------------------------------ NN (Policy Head priors)
@@ -395,7 +399,9 @@ Move Worker::think(const Position& rootPos, const Limits& lim) {
   for (int i = 0; i < n; ++i)
     if (pos.do_move(list[i])) { pos.undo_move(); RootMove rm; rm.move = list[i]; root.push_back(rm); }
   if (root.empty()) return NO_MOVE;
-  if (root.size() == 1 && !lim.infinite && lim.depth == 0) return root[0].move;
+  ponderMove = NO_MOVE;
+  wasPondering = (id == 0 && lim.ponder);
+  if (root.size() == 1 && !lim.infinite && !lim.ponder && lim.depth == 0) return root.front().move;
   if (id != 0 && root.size() == 1) return NO_MOVE;
 
   if (useNet) {
@@ -499,8 +505,14 @@ Move Worker::think(const Position& rootPos, const Limits& lim) {
     if (id == 0) print_info(depth, score, elapsed_ms());
     if (id != 0) continue;
 
-    if (!lim.infinite && std::abs(score) >= MATE_BOUND && depth >= (MATE - std::abs(score)) + 2) break;
-    if (timed && elapsed_ms() > softMs * 6 / 10) break;
+    if (wasPondering && !mgr->ponderFlag.load(std::memory_order_acquire)) {
+      wasPondering = false;
+      startTime = std::chrono::steady_clock::now();
+    }
+    if (!lim.infinite && !wasPondering) {
+      if (std::abs(score) >= MATE_BOUND && depth >= (MATE - std::abs(score)) + 2) break;
+      if (timed && elapsed_ms() > softMs * 6 / 10) break;
+    }
   }
 
   pubNodes.store(nodes, std::memory_order_relaxed);
@@ -531,7 +543,17 @@ Move Worker::think(const Position& rootPos, const Limits& lim) {
       }
     }
   }
-  if (finalMove == NO_MOVE) finalMove = root[0].move;
+  if (finalMove == NO_MOVE) finalMove = root.front().move;
+  if (finalMove == completedBest && *pvLen >= 2 && **pvTable == finalMove) {
+    ponderMove = *(*pvTable + 1);
+  } else if (finalMove != NO_MOVE && pos.do_move(finalMove)) {
+    TTData ptd;
+    if (mgr->tt.probe(pos.key, ptd) && ptd.move != NO_MOVE && pos.do_move(ptd.move)) {
+      pos.undo_move();
+      ponderMove = ptd.move;
+    }
+    pos.undo_move();
+  }
   return finalMove;
 }
 
@@ -625,6 +647,7 @@ uint64_t Searcher::total_nodes() const {
 }
 
 Move Searcher::think(const Position& rootPos, const Limits& lim) {
+  ponderFlag.store(lim.ponder, std::memory_order_release);
   tt.new_search();
   for (auto& w : workers) {
     w->opts = opts;
@@ -634,12 +657,13 @@ Move Searcher::think(const Position& rootPos, const Limits& lim) {
   for (int i = 1; i < (int)workers.size(); ++i)
     helpers.emplace_back([this, i, &rootPos, &lim]() { workers[i]->think(rootPos, lim); });
 
-  Move m = workers[0]->think(rootPos, lim);
-  if (lim.infinite)  // UCI: 'go infinite' must not answer before 'stop'
-    while (!stopFlag) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  Move m = workers.front()->think(rootPos, lim);
+  while (!stopFlag && (lim.infinite || ponderFlag.load(std::memory_order_acquire)))
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   stopFlag = true;
   for (auto& t : helpers) t.join();
   lastNodes = total_nodes();
+  lastPonder = workers.front()->best_ponder();
   return m;
 }
 

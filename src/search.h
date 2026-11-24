@@ -57,6 +57,7 @@ struct Limits {
   int depth = 0;
   uint64_t nodes = 0;
   bool infinite = false;
+  bool ponder = false;
 };
 
 struct SearchOptions {
@@ -84,6 +85,7 @@ class Worker {
   Worker(int id, Searcher* mgr);
   void reset();
   Move think(const Position& root, const Limits& lim);
+  Move best_ponder() const { return ponderMove; }
 
   SearchOptions opts;
   const Network* net = nullptr;
@@ -123,11 +125,13 @@ class Worker {
 
   std::vector<RootMove> root, completed;
   Move iterBestMove = NO_MOVE;
+  Move ponderMove = NO_MOVE;
   int rootDepth = 0, seldepth = 0;
   uint64_t nodes = 0, nodeLimit = 0, nnEvals = 0;
   std::chrono::steady_clock::time_point startTime;
   int64_t softMs = 0, hardMs = 0;
   bool timed = false;
+  bool wasPondering = false;
 };
 
 // Search manager: owns the shared TT and the worker threads (Lazy SMP).
@@ -141,6 +145,8 @@ class Searcher {
 
   SearchOptions opts;
   std::atomic<bool> stopFlag{false};
+  std::atomic<bool> ponderFlag{false};
+  void ponder_hit() { ponderFlag.store(false, std::memory_order_release); }
   TranspositionTable tt;
 
   // Blocking. Runs all threads, prints "info" lines, returns the best move.
@@ -148,11 +154,13 @@ class Searcher {
 
   uint64_t total_nodes() const;  // summed over all threads
   uint64_t last_nodes() const { return lastNodes; }
+  Move last_ponder() const { return lastPonder; }
 
  private:
   std::vector<std::unique_ptr<Worker>> workers;
   const Network* net = nullptr;
   uint64_t lastNodes = 0;
+  Move lastPonder = NO_MOVE;
   int threads = 1;
 };
 

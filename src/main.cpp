@@ -27,7 +27,7 @@
 
 using namespace xmt;
 
-#define XMT_VERSION "1.0.0"
+#define XMT_VERSION "1.1.0"
 
 static std::mutex g_outMutex;
 namespace xmt {
@@ -192,13 +192,16 @@ struct Engine {
       else if (t == "depth") is >> lim.depth;
       else if (t == "nodes") is >> lim.nodes;
       else if (t == "infinite") lim.infinite = true;
+      else if (t == "ponder") lim.ponder = true;
     }
     stop_search();
     searcher.stopFlag = false;
     Position copy = pos;
     worker = std::thread([this, copy, lim]() {
       Move m = searcher.think(copy, lim);
-      uci_out("bestmove " + move_to_uci(m));
+      Move pm = searcher.last_ponder();
+      if (pm != NO_MOVE) uci_out("bestmove " + move_to_uci(m) + " ponder " + move_to_uci(pm));
+      else uci_out("bestmove " + move_to_uci(m));
     });
   }
 
@@ -243,6 +246,7 @@ struct Engine {
         uci_out("id author Xamito");
         uci_out("option name Hash type spin default 64 min 1 max 4096");
         uci_out("option name Threads type spin default 1 min 1 max 64");
+        uci_out("option name Ponder type check default false");
         uci_out("option name Move Overhead type spin default 100 min 0 max 5000");
         uci_out("option name Clear Hash type button");
         uci_out("option name UseNN type check default true");
@@ -256,6 +260,7 @@ struct Engine {
       else if (cmd == "ucinewgame") { stop_search(); searcher.new_game(); pos.set_startpos(); }
       else if (cmd == "position") { stop_search(); cmd_position(is); }
       else if (cmd == "go") cmd_go(is);
+      else if (cmd == "ponderhit") searcher.ponder_hit();
       else if (cmd == "stop") stop_search();
       else if (cmd == "setoption") cmd_setoption(is);
       else if (cmd == "quit") break;

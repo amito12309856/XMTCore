@@ -1,0 +1,27 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - run: .\build.bat
+        shell: cmd
+      - run: .\build.bat generic
+        shell: cmd
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = "XMTCore-${{ github.ref_name }}-win64"
+          New-Item -ItemType Directory $name | Out-Null
+          Copy-Item XMTCore.exe, XMTCore-generic.exe, LICENSE, README.md $name
+          Copy-Item weights/xmtcore.nn $name
+          Compress-Archive -Path $name -DestinationPath "$name.zip"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: XMTCore-*-win64.zip

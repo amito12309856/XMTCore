@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+*.exe
+*.obj
+*.o
+*.pdb
+*.ilk
+*.pgn
+*.bak
+bot.log
+/XMTCore
+*.pth

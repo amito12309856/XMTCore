@@ -1,0 +1,9 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make ARCH=x86-64-v2
+      - run: make test ARCH=x86-64-v2

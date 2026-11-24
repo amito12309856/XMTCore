@@ -258,5 +258,6 @@ The Lichess result is a rating-pool outcome and depends on the opponent distribu
 
 ## License
 
-MIT. See `LICENSE`.
+GNU General Public License v3.0 (GPL-3.0). See `LICENSE`.
+
 

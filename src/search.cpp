@@ -555,6 +555,24 @@ Move Worker::think(const Position& rootPos, const Limits& lim) {
     if (mgr->tt.probe(pos.key, ptd) && ptd.move != NO_MOVE && pos.do_move(ptd.move)) {
       pos.undo_move();
       ponderMove = ptd.move;
+    } else {
+      Move oppList[256];
+      int oppN = generate(pos, oppList, false);
+      if (useNet && oppN > 0 && oppN <= 256) {
+        float pv;
+        net->evaluate(pos, pv, logitBuf.data());
+        float bestL = -1e30f;
+        for (int oi = 0; oi < oppN; ++oi) {
+          if (!pos.do_move(oppList[oi])) continue;
+          pos.undo_move();
+          float lg = net->move_logit(logitBuf.data(), oppList[oi], pos.stm);
+          if (lg > bestL) { bestL = lg; ponderMove = oppList[oi]; }
+        }
+      } else {
+        for (int oi = 0; oi < oppN; ++oi) {
+          if (pos.do_move(oppList[oi])) { pos.undo_move(); ponderMove = oppList[oi]; break; }
+        }
+      }
     }
     pos.undo_move();
   }

@@ -1,7 +1,7 @@
 CC       ?= gcc
 CXX      ?= g++
 ARCH     ?= native
-CFLAGS   ?= -O3 -DNDEBUG -Isrc/fathom
+CFLAGS   ?= -O3 -std=c11 -flto=auto -DNDEBUG -Isrc/fathom
 CXXFLAGS ?= -O3 -std=c++17 -march=$(ARCH) -flto=auto -DNDEBUG -Wall -Wextra -Isrc/fathom
 LDFLAGS  ?= -flto=auto -pthread
 SRC       = src/chess.cpp src/eval.cpp src/nn.cpp src/search.cpp src/syzygy.cpp src/main.cpp

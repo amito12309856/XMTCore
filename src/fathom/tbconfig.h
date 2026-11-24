@@ -1,3 +1,4 @@
+#define TB_NO_THREADS
 /*
  * tbconfig.h
  * (C) 2015 basil, all rights reserved,

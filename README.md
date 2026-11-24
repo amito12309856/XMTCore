@@ -19,7 +19,7 @@ Lichess: https://lichess.org/@/XMTCore
 | Evaluation | PeSTO piece-square tables + pawn structure, bishop pair, rook files, king shield |
 | Network | `PolicyValueNet`, input `(12, 8, 8)`, 3 x conv3x3 (32 channels), policy over 4096 from-to pairs, scalar value |
 | Network file | `xmtcore.nn`, float32, 98.5 KB |
-| Current network | Generation 1002, ~129,591 training games (self-play, grandmaster PGN, tactical distillation) |
+| Current network | Generation 1002, ~132,151 training games (self-play, grandmaster PGN, tactical distillation) |
 | Not supported | Chess960 |
 
 ## Architecture
@@ -257,6 +257,7 @@ The Lichess result is a rating-pool outcome and depends on the opponent distribu
 ## License
 
 GNU General Public License v3.0 (GPL-3.0). See `LICENSE`.
+
 
 
 

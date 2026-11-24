@@ -1,3 +1,4 @@
+#include "syzygy.h"
 #include "search.h"
 
 #include <cmath>
@@ -203,6 +204,16 @@ int Worker::search(int depth, int alpha, int beta, int ply, bool doNull) {
     }
   }
 
+  if (!pvNode && ply > 0) {
+    int tbScore = 0;
+    if (syzygy_probe_wdl(pos, tbScore)) {
+      if (tbScore > 0) tbScore -= ply;
+      else if (tbScore < 0) tbScore += ply;
+      mgr->tt.store(key, NO_MOVE, score_to_tt(tbScore, ply), depth, TT_EXACT);
+      return tbScore;
+    }
+  }
+
   const int staticEval = inCheck ? 0 : evaluate(pos);
   const int us = pos.stm;
 
@@ -399,6 +410,14 @@ Move Worker::think(const Position& rootPos, const Limits& lim) {
   for (int i = 0; i < n; ++i)
     if (pos.do_move(list[i])) { pos.undo_move(); RootMove rm; rm.move = list[i]; root.push_back(rm); }
   if (root.empty()) return NO_MOVE;
+  if (id == 0 && !lim.infinite && !lim.ponder && lim.depth == 0) {
+    Move tbMove = NO_MOVE;
+    int tbScore = 0;
+    if (syzygy_probe_root(pos, tbMove, tbScore) && tbMove != NO_MOVE) {
+      uci_out("info depth 1 seldepth 1 score cp " + std::to_string(tbScore) + " nodes 1 nps 1000 time 1 pv " + move_to_uci(tbMove));
+      return tbMove;
+    }
+  }
   ponderMove = NO_MOVE;
   completedPonder = NO_MOVE;
   wasPondering = (id == 0 && lim.ponder);

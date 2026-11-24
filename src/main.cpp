@@ -1,3 +1,4 @@
+#include "syzygy.h"
 // XMTCore - native UCI engine (C++ search + PolicyValueNet exported from PyTorch)
 #include <chrono>
 #include <cmath>
@@ -27,7 +28,7 @@
 
 using namespace xmt;
 
-#define XMT_VERSION "1.1.0"
+#define XMT_VERSION "1.2.0"
 
 static std::mutex g_outMutex;
 namespace xmt {
@@ -231,6 +232,10 @@ struct Engine {
     else if (name == "NNMargin") searcher.opts.nnMargin = num(0, 100, 15);
     else if (name == "NNValueCp") searcher.opts.nnValueCp = num(0, 300, 30);
     else if (name == "NNPolicyCp") searcher.opts.nnPolicyCp = num(0, 300, 20);
+    else if (name == "SyzygyPath") {
+      syzygy_init(value);
+      uci_out("info string syzygy initialized: max " + std::to_string(syzygy_max_pieces()) + " pieces");
+    }
     // Ponder/SyzygyPath and unknown options: ignored on purpose
   }
 
@@ -255,6 +260,7 @@ struct Engine {
         uci_out("option name NNMargin type spin default 15 min 0 max 100");
         uci_out("option name NNValueCp type spin default 30 min 0 max 300");
         uci_out("option name NNPolicyCp type spin default 20 min 0 max 300");
+        uci_out("option name SyzygyPath type string default <empty>");
         uci_out("uciok");
       } else if (cmd == "isready") uci_out("readyok");
       else if (cmd == "ucinewgame") { stop_search(); searcher.new_game(); pos.set_startpos(); }

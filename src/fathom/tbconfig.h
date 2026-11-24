@@ -1,4 +1,17 @@
 #define TB_NO_THREADS
+#ifdef _MSC_VER
+#include <intrin.h>
+#include <stddef.h>
+typedef ptrdiff_t ssize_t;
+#ifndef restrict
+#define restrict __restrict
+#endif
+static __inline unsigned xmt_msvc_popcnt(unsigned long long x) { return (unsigned)__popcnt64(x); }
+static __inline unsigned xmt_msvc_lsb(unsigned long long x) { unsigned long i; _BitScanForward64(&i, x); return (unsigned)i; }
+#define TB_CUSTOM_POP_COUNT(x) xmt_msvc_popcnt(x)
+#define TB_CUSTOM_LSB(x) xmt_msvc_lsb(x)
+#define TB_NO_HW_POP_COUNT
+#endif
 /*
  * tbconfig.h
  * (C) 2015 basil, all rights reserved,

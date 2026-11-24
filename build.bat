@@ -8,7 +8,7 @@ if /I "%1"=="generic" (
   set ARCHFLAG=
   set OUT=XMTCore-generic.exe
 )
-cl /nologo /O2 /GL /std:c++17 /EHsc %ARCHFLAG% /DNDEBUG /Isrc\fathom /Fe:%OUT% src\chess.cpp src\eval.cpp src\nn.cpp src\search.cpp src\syzygy.cpp src\main.cpp src\fathom\tbprobe.c
+cl /nologo /O2 /GL /std:c++17 /EHsc %ARCHFLAG% /DNDEBUG /D_CRT_SECURE_NO_WARNINGS /Isrc\fathom /Fe:%OUT% src\chess.cpp src\eval.cpp src\nn.cpp src\search.cpp src\syzygy.cpp src\main.cpp src\fathom\tbprobe.c
 if errorlevel 1 (
   echo BUILD FAILED
   exit /b 1

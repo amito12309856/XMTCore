@@ -416,51 +416,93 @@ bool Position::insufficient_material() const {
   return minors <= 1;
 }
 
-// SEE ("swap" algorithm). Simplification: ignores pins; special moves score 0.
+static inline bool aligned_ray(int ksq, int s1, int s2) {
+  Bitboard b1 = sq_bb(s1), b2 = sq_bb(s2);
+  if ((rook_attacks(ksq, b1) & b2) || (rook_attacks(ksq, b2) & b1)) {
+    return (rook_attacks(ksq, 0) & b1) && (rook_attacks(ksq, 0) & b2) &&
+           ((rook_attacks(ksq, b1) & rook_attacks(s1, sq_bb(ksq)) & b2) ||
+            (rook_attacks(ksq, b2) & rook_attacks(s2, sq_bb(ksq)) & b1));
+  }
+  if ((bishop_attacks(ksq, b1) & b2) || (bishop_attacks(ksq, b2) & b1)) {
+    return (bishop_attacks(ksq, 0) & b1) && (bishop_attacks(ksq, 0) & b2) &&
+           ((bishop_attacks(ksq, b1) & bishop_attacks(s1, sq_bb(ksq)) & b2) ||
+            (bishop_attacks(ksq, b2) & bishop_attacks(s2, sq_bb(ksq)) & b1));
+  }
+  return false;
+}
+
+// Pin-aware Static Exchange Evaluation (SEE).
 bool Position::see_ge(Move m, int threshold) const {
   if (m & (FLAG_CASTLE | FLAG_EP)) return 0 >= threshold;
-  if (promo_of(m)) return 0 >= threshold;
-  const int from = from_sq(m), to = to_sq(m);
-  int swap = (board[to] == NO_PIECE ? 0 : SEE_VALUE[type_of(board[to])]) - threshold;
+  const int from = from_sq(m), to = to_sq(m), promo = promo_of(m);
+  int swap = (*(board + to) == NO_PIECE ? 0 : *(SEE_VALUE + type_of(*(board + to)))) - threshold;
+  if (promo) swap += *(SEE_VALUE + promo) - *(SEE_VALUE + PAWN);
   if (swap < 0) return false;
-  swap = SEE_VALUE[type_of(board[from])] - swap;
+  swap = (promo ? *(SEE_VALUE + promo) : *(SEE_VALUE + type_of(*(board + from)))) - swap;
   if (swap <= 0) return true;
 
   Bitboard o = occ ^ sq_bb(from) ^ sq_bb(to);
-  int side = color_of(board[from]);
+  int side = color_of(*(board + from));
   Bitboard attackers = attackers_to(to, o) & o;
   int res = 1;
-  const Bitboard diag = byType[BISHOP] | byType[QUEEN];
-  const Bitboard orth = byType[ROOK] | byType[QUEEN];
+  const Bitboard diag = *(byType + BISHOP) | *(byType + QUEEN);
+  const Bitboard orth = *(byType + ROOK) | *(byType + QUEEN);
+
+  int ksqW = king_sq(WHITE), ksqB = king_sq(BLACK);
+  Bitboard pinnedW = 0, pinnedB = 0, pinnerW = 0, pinnerB = 0;
+  for (int c = 0; c < 2; ++c) {
+    int ksq = (c == WHITE) ? ksqW : ksqB;
+    Bitboard snipers = ((rook_attacks(ksq, 0) & orth) | (bishop_attacks(ksq, 0) & diag)) & *(byColor + (c ^ 1));
+    while (snipers) {
+      int s = pop_lsb(snipers);
+      Bitboard between = (rook_attacks(ksq, sq_bb(s)) & rook_attacks(s, sq_bb(ksq))) |
+                         (bishop_attacks(ksq, sq_bb(s)) & bishop_attacks(s, sq_bb(ksq)));
+      Bitboard blk = between & occ;
+      if (blk && !more_than_one(blk) && (blk & *(byColor + c))) {
+        if (c == WHITE) { pinnedW |= blk; pinnerW |= sq_bb(s); }
+        else { pinnedB |= blk; pinnerB |= sq_bb(s); }
+      }
+    }
+  }
 
   for (;;) {
     side ^= 1;
     attackers &= o;
-    Bitboard mine = attackers & byColor[side];
+    Bitboard mine = attackers & *(byColor + side);
+    Bitboard sidePinners = (side == WHITE) ? pinnerW : pinnerB;
+    if (sidePinners & o) {
+      Bitboard sidePinned = (side == WHITE) ? pinnedW : pinnedB;
+      int sideKsq = (side == WHITE) ? ksqW : ksqB;
+      Bitboard p = mine & sidePinned;
+      while (p) {
+        int psq = pop_lsb(p);
+        if (!aligned_ray(sideKsq, psq, to)) mine ^= sq_bb(psq);
+      }
+    }
     if (!mine) break;
     res ^= 1;
     Bitboard bb;
-    if ((bb = mine & byType[PAWN])) {
-      if ((swap = SEE_VALUE[PAWN] - swap) < res) break;
+    if ((bb = mine & *(byType + PAWN))) {
+      if ((swap = *(SEE_VALUE + PAWN) - swap) < res) break;
       o ^= bb & (~bb + 1);
       attackers |= bishop_attacks(to, o) & diag;
-    } else if ((bb = mine & byType[KNIGHT])) {
-      if ((swap = SEE_VALUE[KNIGHT] - swap) < res) break;
+    } else if ((bb = mine & *(byType + KNIGHT))) {
+      if ((swap = *(SEE_VALUE + KNIGHT) - swap) < res) break;
       o ^= bb & (~bb + 1);
-    } else if ((bb = mine & byType[BISHOP])) {
-      if ((swap = SEE_VALUE[BISHOP] - swap) < res) break;
+    } else if ((bb = mine & *(byType + BISHOP))) {
+      if ((swap = *(SEE_VALUE + BISHOP) - swap) < res) break;
       o ^= bb & (~bb + 1);
       attackers |= bishop_attacks(to, o) & diag;
-    } else if ((bb = mine & byType[ROOK])) {
-      if ((swap = SEE_VALUE[ROOK] - swap) < res) break;
+    } else if ((bb = mine & *(byType + ROOK))) {
+      if ((swap = *(SEE_VALUE + ROOK) - swap) < res) break;
       o ^= bb & (~bb + 1);
       attackers |= rook_attacks(to, o) & orth;
-    } else if ((bb = mine & byType[QUEEN])) {
-      if ((swap = SEE_VALUE[QUEEN] - swap) < res) break;
+    } else if ((bb = mine & *(byType + QUEEN))) {
+      if ((swap = *(SEE_VALUE + QUEEN) - swap) < res) break;
       o ^= bb & (~bb + 1);
       attackers |= (bishop_attacks(to, o) & diag) | (rook_attacks(to, o) & orth);
-    } else {  // king: captures only if the other side has no remaining attackers
-      return (attackers & ~byColor[side]) ? (res ^ 1) : res;
+    } else {
+      return (attackers & ~(*(byColor + side))) ? (res ^ 1) : res;
     }
   }
   return res != 0;

@@ -118,6 +118,9 @@ class Worker {
   std::vector<float> logitBuf;
 
   int history[2][64][64];
+  Move counterMoves[12][64]{};
+  Move lastMove[MAX_PLY + 2]{};
+  int lastPiece[MAX_PLY + 2]{};
   Move killers[MAX_PLY + 2][2];
   Move pvTable[MAX_PLY + 2][MAX_PLY + 2];
   int pvLen[MAX_PLY + 2];

@@ -35,6 +35,7 @@ Worker::Worker(int id_, Searcher* m) : id(id_), mgr(m) {
 
 void Worker::reset() {
   std::memset(history, 0, sizeof(history));
+  std::memset(counterMoves, 0, sizeof(counterMoves));
   std::memset(killers, 0, sizeof(killers));
   for (auto& e : nnCache) e.key = 0;
   pubNodes = 0;

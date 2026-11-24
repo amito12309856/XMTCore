@@ -28,7 +28,7 @@
 
 using namespace xmt;
 
-#define XMT_VERSION "1.2.0"
+#define XMT_VERSION "1.3.0"
 
 static std::mutex g_outMutex;
 namespace xmt {
